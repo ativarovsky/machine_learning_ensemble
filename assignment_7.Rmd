@@ -1,0 +1,16 @@
+---
+title: "Machine Learning Assignment 7"
+author: "Alice Tivarovsky"
+date: "3/5/2020"
+output: 
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
