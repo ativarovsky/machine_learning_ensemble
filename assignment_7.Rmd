@@ -12,5 +12,118 @@ editor_options:
 ## Setup
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(randomForest)
+library(caret)
+library(tidyverse)
+library(rpart)
+library(caret)
+library(rpart.plot)
+library(pROC)
+
 ```
+
+## Number 1
+
+Cleaning and tidying the Cleveland Heart Disease dataset. 
+```{r}
+heart.data <- read.csv("/Users/AliceTivarovsky/Documents/Grad School/Spring 2020/Machine Learning/processed.cleveland.data", header = FALSE)
+
+var.names <- c("age", "sex", "pain_type", "resting_sysbp", "chol", "fast_blsugar_gt120", "rest_ecg", "max_hr", "exerc_angina", "ST_depression", "ST_slope", "vessels_colorflu", "defect", "heart_disease_present")
+
+colnames(heart.data) <- var.names
+str(heart.data)
+
+heart.data[heart.data == "?"] <- NA
+
+heart.data$defect <- as.numeric(factor(heart.data$defect))
+heart.data$vessels_colorflu <- as.numeric(factor(heart.data$vessels_colorflu))
+
+heart.data$outcome <- ifelse(heart.data$heart_disease_present == 0, 0,1)
+heart.data$heart_disease_present <- NULL
+heart.data$outcome <- factor(heart.data$outcome)
+levels(heart.data$outcome) <- c("HD Not Present", "HD Present")
+str(heart.data)
+summary(heart.data)
+
+#Remove the missings
+heart.data.nomiss <- na.omit(heart.data)
+
+#Set No Heart Disease as Reference Level
+heart.data.nomiss$outcome <- relevel(heart.data.nomiss$outcome, ref = "HD Not Present")
+
+str(heart.data.nomiss)
+
+```
+
+## Number 2
+
+Run a single classification tree using all of the features available in the dataset. Calculate evaluation metrics and output the variable importance metrics.
+
+```{r partition}
+training.data <- heart.data.nomiss$outcome %>% createDataPartition(p = 0.7, list = F)
+train.data <- heart.data.nomiss[training.data, ]
+test.data <- heart.data.nomiss[-training.data, ]
+
+```
+
+
+```{r classification tree}
+train.control <- trainControl(method = "cv", number = 10)
+grid.2 <- expand.grid(cp = seq(0.001, 0.3, by = 0.01))
+hd.tree <- train(outcome~., data = train.data, method = "rpart",trControl = train.control, tuneGrid = grid.2)
+hd.tree$bestTune
+
+# variable importance
+varImp(hd.tree)
+
+# tree plot
+rpart.plot(hd.tree$finalModel)
+accuracy.train.singletree <- hd.tree$results[which.max(hd.tree$results[,"Accuracy"]), "Accuracy"]
+
+```
+
+The variables vessels_colorflu, pain_type, max_hr, defect and exerc_angina have the highest variable importance. The accuracy of the model is 81.76%. 
+
+
+## Number 3
+
+Use random forest to classify heart disease. Set up a pipeline to try different values of mtry and different numbers of trees to obtain your optimal model. Again, calculate appropriate evaluation metrics and output the variable importance metrics.
+
+```{r random forest}
+
+set.seed(100)
+
+possible_predictors = heart.data.nomiss %>% select(-"outcome")
+
+## using tuneRF to find optimal mtry
+bestMtry=tuneRF(x = possible_predictors, y = heart.data.nomiss$outcome, ntreeTry = 50, stepFactor = 1, improve=0.0001, trace=FALSE, plot=FALSE, doBest=FALSE)  
+
+# running random forest with 50 trees
+rf.heart.tune = randomForest(outcome ~., data = train.data, mtry = bestMtry, importance = TRUE, ntree = 50)
+
+print(rf.heart.tune)
+plot(1-rf.heart.tune$err.rate[,1])  
+
+# running random forest with 100 trees
+rf.heart.tune = randomForest(outcome ~., data = train.data, mtry = bestMtry, importance = TRUE, ntree = 100)
+
+print(rf.heart.tune)
+plot(1-rf.heart.tune$err.rate[,1])  
+varImpPlot(rf.heart.tune)
+```
+
+Out of bag error rate with 50 trees = 12.98%
+Error rate with 100 trees = 16.35%
+
+We see from the plots that the error rate does not improve after about 50 trees. Looking at the variable importance plots, vessels_colorflu, defect, pain_type, and max_hr are the most important variables. 
+
+## Number 4
+Answer the questions: Are there differences in variable importance that you see between a single tree and an ensemble metric? Are there differences observed across the different variable importance metrics output from the ensemble? How do you interpret those differences?
+
+
+
+
+
+## Number 5
 
