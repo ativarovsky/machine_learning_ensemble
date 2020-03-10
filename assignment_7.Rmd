@@ -10,7 +10,7 @@ editor_options:
 ---
 
 ## Setup
-```{r setup, include=FALSE}
+```{r setup, include=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(randomForest)
@@ -20,12 +20,13 @@ library(rpart)
 library(caret)
 library(rpart.plot)
 library(pROC)
+library(gbm)
 
 ```
 
 ## Number 1
 
-__bold__Cleaning and tidying the Cleveland Heart Disease dataset. __bold__
+__Cleaning and tidying the Cleveland Heart Disease dataset. __
 ```{r}
 heart.data <- read.csv("/Users/AliceTivarovsky/Documents/Grad School/Spring 2020/Machine Learning/processed.cleveland.data", header = FALSE)
 
@@ -58,7 +59,7 @@ str(heart.data.nomiss)
 
 ## Number 2
 
-__bold__Run a single classification tree using all of the features available in the dataset. Calculate evaluation metrics and output the variable importance metrics.__bold__
+__Run a single classification tree using all of the features available in the dataset. Calculate evaluation metrics and output the variable importance metrics.__
 
 ```{r partition}
 training.data <- heart.data.nomiss$outcome %>% createDataPartition(p = 0.7, list = F)
@@ -88,7 +89,7 @@ The variables vessels_colorflu, pain_type, max_hr, defect and exerc_angina have 
 
 ## Number 3
 
-__bold__Use random forest to classify heart disease. Set up a pipeline to try different values of mtry and different numbers of trees to obtain your optimal model. Again, calculate appropriate evaluation metrics and output the variable importance metrics.__bold__
+__Use random forest to classify heart disease. Set up a pipeline to try different values of mtry and different numbers of trees to obtain your optimal model. Again, calculate appropriate evaluation metrics and output the variable importance metrics.__
 
 ```{r random forest}
 
@@ -119,9 +120,46 @@ Error rate with 100 trees = 16.35%
 We see from the plots that the error rate does not improve after about 50 trees. Looking at the variable importance plots, vessels_colorflu, defect, pain_type, and max_hr are the most important variables. 
 
 ## Number 4
-__bold__Answer the questions: Are there differences in variable importance that you see between a single tree and an ensemble metric? Are there differences observed across the different variable importance metrics output from the ensemble? How do you interpret those differences? __bold__
+__Answer the questions: Are there differences in variable importance that you see between a single tree and an ensemble metric? Are there differences observed across the different variable importance metrics output from the ensemble? How do you interpret those differences? __
 
 For the most part the variables with the highest importance are the same between the single tree and the random forest: vessels, defect, chest pain type, and maximum heart rate. The order is slightly different, but the most important variable remains vessels. This consistency suggests that the variable importance computed by the single tree algorithm is accurate, since random forests are more accurate than single trees. 
 
 ## Number 5
-__bold__Use a boosting algorithm and tune to obtain your optimal model. Compare to the results from the single classification tree and the random forest.__bold__
+__Use a boosting algorithm and tune to obtain your optimal model. Compare to the results from the single classification tree and the random forest.__
+
+```{r}
+# convert outcome to numeric
+set.seed(100)
+train.data$outcome.num = (as.numeric(train.data$outcome)[train.data$outcome]) - 1
+
+train.data$outcome = NULL
+
+gbm.heart = gbm(outcome.num ~., data = train.data, distribution = 'bernoulli', n.trees = 2000, shrinkage = 0.002)
+
+summary(gbm.heart)
+
+gbm.perf(gbm.heart, plot.it=TRUE, oobag.curve=TRUE, overlay=TRUE, method='OOB')
+
+pred.gbm.heart<-predict(gbm.heart, train.data, n.trees=2000, type="response")
+
+pred.gbm.class<-round(pred.gbm.heart)
+
+misClasificError <- mean(pred.gbm.class != train.data$outcome.num)
+print(paste('Accuracy Model',1-misClasificError))
+
+```
+
+The boosting algorithm with 2000 trees and a lambda of 0.002 yields a highly accurate model (94.7%). This is a big improvment from both the single tree and random forest models. 
+
+## Number 6
+
+__Which model performs the best? Provide justification for your answer.__
+
+The boosted model performs best. It has the lowest error rate (100 - 94.7 = 5.3%), versus 16% in the random forest and 19% in the single tree model. However, in order to achieve this accuracy in the boosted algorithm, we need 2000 trees. If we drop to 1000 trees, the accuracy falls to 90%. 
+
+
+## Number 7
+
+__How do these results compare to the SVC analysis we did back in Class 6? __
+
+The SVC analysis we ran in Class 6 resulted in a model with 87% accuracy, which is higher than both the single tree and random forest models, but lower than the boosted algorithm. 
